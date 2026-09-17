@@ -629,6 +629,8 @@
      nữa thì sang trang riêng của chuyên mục đang chọn, thay vì kéo dài mãi một
      danh sách trộn lẫn mọi thứ. */
   var PAGE_SIZE = 12;
+  // số thẻ đang được bày; "Xem thêm" tại chỗ nâng dần mốc này
+  var limit = PAGE_SIZE;
   var CAT_PAGES = {
     'all': 'moi-nhat.html',
     'hot': 'hot-hom-nay.html',
@@ -669,7 +671,7 @@
       var ok = matchCat && matchText;
       if (ok) matched++;
 
-      var visible = ok && shown < PAGE_SIZE;
+      var visible = ok && shown < limit;
       if (visible) shown++;
 
       card.classList.toggle('is-filtered', !visible);
@@ -678,7 +680,8 @@
     if (emptyEl) emptyEl.classList.toggle('is-visible', shown === 0);
 
     var page = CAT_PAGES[currentFilter];
-    var overflow = !!page && matched > PAGE_SIZE;
+    // chỉ dẫn sang trang chuyên mục khi còn thanh chip để chọn chuyên mục
+    var overflow = !!chipsWrap && !!page && matched > limit;
 
     if (catMore) {
       catMore.hidden = !overflow;
@@ -691,7 +694,7 @@
     // Trang chủ luôn dừng ở 12 thẻ rồi dẫn sang trang chuyên mục, nên nút nạp
     // thêm tại chỗ không còn việc gì; trang con không có #feedSecondary thì vẫn
     // giữ nút đó để bày tiếp danh sách.
-    if (loadMoreBtn) loadMoreBtn.hidden = !!$('#feedSecondary') || q !== '';
+    if (loadMoreBtn) loadMoreBtn.hidden = !!(chipsWrap && $('#feedSecondary')) || q !== '';
     if (loadWrap) {
       loadWrap.hidden = (!loadMoreBtn || loadMoreBtn.hidden) && (!catMore || catMore.hidden);
     }
@@ -871,6 +874,36 @@
      "Xem thêm" ở các trang đó sẽ không làm gì cả. */
   var loadTarget = feed || primaryFeed;
 
+  /* Trang chủ (không có #feedPrimary): thẻ đã có sẵn trong dòng tin, chỉ bị giấu
+     sau mốc 12. Bấm "Xem thêm" thì bày tiếp 12 thẻ ngay tại chỗ, không chuyển trang. */
+  if (loadBtn && !primaryFeed && feed) {
+    var conAn = function () {
+      return feedParts.some(function (part) { return !!$('.card.is-filtered', part); });
+    };
+    var hetBai = function (label) {
+      loadBtn.disabled = true;
+      if (label) label.textContent = 'Bạn đã xem hết nội dung';
+    };
+
+    applyFilters();
+    if (!chipsWrap && !conAn()) hetBai($('.btn-outline__label', loadBtn));
+
+    loadBtn.addEventListener('click', function () {
+      if (loadBtn.disabled) return;
+      var label = $('.btn-outline__label', loadBtn);
+      loadBtn.classList.add('is-loading');
+      if (label) label.textContent = 'Đang tải…';
+
+      setTimeout(function () {
+        limit += PAGE_SIZE;
+        loadBtn.classList.remove('is-loading');
+        applyFilters();
+        if (conAn()) { if (label) label.textContent = 'Xem thêm'; }
+        else hetBai(label);
+      }, 600);
+    });
+  }
+
   if (loadBtn && loadTarget && primaryFeed) {
     var pool = $$('.card', primaryFeed);
     var poolIndex = 0;
@@ -893,6 +926,7 @@
           poolIndex++;
           added++;
         }
+        limit += added;
 
         loadBtn.classList.remove('is-loading');
         applyFilters();
